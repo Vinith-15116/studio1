@@ -1,37 +1,3 @@
-/**
- * ProblemPulse Firestore Security Rules
- * 
- * CORE PHILOSOPHY:
- * This ruleset implements a strict identity-based security model. It prioritizes Authorization 
- * Independence by ensuring that security decisions are either based on the document's location 
- * in the hierarchy (path-based) or on denormalized ownership data within the document itself. 
- * While the rules are flexible regarding the general shape of content data to support rapid 
- * prototyping, they strictly enforce relational integrity for identity and ownership fields.
- * 
- * DATA STRUCTURE:
- * - /users/{userId}: Private user profile data. Access is isolated to the authenticated 
- *   user matching the document ID.
- * - /problems/{problemId}: Global repository of risk/issue data. These are readable 
- *    by any authenticated user but are intended to be managed by their respective creators.
- * 
- * KEY SECURITY DECISIONS:
- * - Authenticated Access Only: In alignment with the ProblemPulse requirements, read 
- *   access to global problems is restricted to signed-in users, preventing public scraping.
- * - Path-to-Data Consistency: For user profiles, the rules enforce that the internal 'id' 
- *   field must always match the Firestore Document ID, preventing data spoofing.
- * - Immutability: Critical relational fields (like the User 'id') are marked as 
- *   immutable after creation to maintain database integrity.
- * 
- * DENORMALIZATION FOR AUTHORIZATION:
- * - The 'Problem' entity relies on a 'createdBy' field (as specified in the architectural 
- *   reasoning) to verify ownership. This avoids expensive cross-document lookups (get() calls) 
- *   during write operations.
- * 
- * STRUCTURAL SEGREGATION:
- * - Personal user data and global problem data are stored in separate top-level collections 
- *   to simplify the security posture and ensure that listing problems does not inadvertently 
- *   expose private user profile information.
- */
 
 rules_version = '2';
 service cloud.firestore {
@@ -39,79 +5,38 @@ service cloud.firestore {
 
     // --- GLOBAL HELPER FUNCTIONS ---
 
-    /** @description Checks if the request is made by an authenticated user. */
     function isSignedIn() {
       return request.auth != null;
     }
 
-    /** @description Checks if the authenticated user's UID matches the provided userId. */
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    /** 
-     * @description Verifies ownership and ensures the document exists for update/delete.
-     * @param doc The document reference (e.g., `resource`).
-     */
-    function isExistingOwner(doc, userId) {
-      return doc != null && isOwner(userId);
-    }
-
-    /** @description Checks if the authenticated user's UID matches a specific field (e.g., createdBy). */
     function isCreator(creatorId) {
       return isSignedIn() && request.auth.uid == creatorId;
     }
 
-    /** 
-     * @description Verifies creator status and ensures the document exists. 
-     * @param doc The document reference (e.g., `resource`).
-     */
-    function isExistingCreator(doc, creatorId) {
-      return doc != null && isCreator(creatorId);
-    }
-
     // --- COLLECTION RULES ---
 
-    /**
-     * @description Rules for the User collection, enforcing strict path-based ownership.
-     * @path /users/{userId}
-     * @allow Authenticated user 'abc' to (get) their own profile /users/abc.
-     * @deny Authenticated user 'abc' from (update) user profile /users/xyz.
-     * @principle Restricts access to a user's own data tree and validates path consistency.
-     */
     match /users/{userId} {
-      allow get, list: if isOwner(userId);
+      // Allow any authenticated analyst to view the network directory
+      allow get, list: if isSignedIn();
       
       allow create: if isOwner(userId) 
-        && request.resource.data != null // Defensive check to ensure `data` map exists
+        && request.resource.data != null 
         && request.resource.data.id == userId;
       
-      // For update/delete, `resource` exists, so pass it to `isExistingOwner`
-      allow update: if isExistingOwner(resource, userId) 
+      allow update: if isOwner(userId) 
         && request.resource.data.id == resource.data.id;
       
-      allow delete: if isExistingOwner(resource, userId);
+      allow delete: if isOwner(userId);
     }
 
-    /**
-     * @description Rules for the Problem collection, allowing global read for users and creator-only writes.
-     * @path /problems/{problemId}
-     * @allow Any authenticated user to (list) all problems.
-     * @deny Unauthenticated users from (get) any problem document.
-     * @principle Implements global authenticated reads with owner-only write restrictions.
-     */
     match /problems/{problemId} {
       allow get, list: if isSignedIn();
-
-      /**
-       * CRITICAL: The 'Problem' entity definition is missing an ownership field (like 'createdBy') 
-       * in the properties list, although the reasoning suggests one should exist. 
-       * Ownership-based writes cannot be securely implemented without this field.
-       */
-      // For create, `resource` is null, use `isCreator` and `request.resource.data`
       allow create: if request.resource.data != null && isCreator(request.resource.data.createdBy);
-      // For update/delete, `resource` exists, so pass it to `isExistingCreator`
-      allow update, delete: if isExistingCreator(resource, resource.data.createdBy);
+      allow update, delete: if isCreator(resource.data.createdBy);
     }
   }
 }

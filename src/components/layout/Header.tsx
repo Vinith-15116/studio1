@@ -1,8 +1,9 @@
+
 "use client";
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Activity, LayoutDashboard, Lightbulb, User as UserIcon, LogOut, Sun, Moon } from "lucide-react";
+import { Activity, LayoutDashboard, Lightbulb, User as UserIcon, LogOut, Sun, Moon, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -19,6 +20,7 @@ export default function Header() {
   const navLinks = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { name: "Innovate", href: "/innovate", icon: Lightbulb },
+    { name: "Network", href: "/network", icon: Users },
     { name: "Profile", href: "/profile", icon: UserIcon },
   ];
 

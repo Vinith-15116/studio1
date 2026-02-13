@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -32,6 +33,9 @@ export default function SignupPage() {
           id: user.uid,
           name: name || user.displayName || "Anonymous User",
           email: user.email,
+          role: "Analyst",
+          isAdmin: false,
+          location: "Global Node",
           createdAt: new Date().toISOString(),
         }, { merge: true });
       }
