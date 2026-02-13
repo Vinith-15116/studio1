@@ -1,0 +1,151 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user account within the ProblemPulse application, enabling secure access and identification.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the User entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The full name or display name of the user."
+        },
+        "email": {
+          "type": "string",
+          "description": "The unique email address of the user, used for login.",
+          "format": "email"
+        },
+        "password": {
+          "type": "string",
+          "description": "The hashed password for the user's account. Stored securely using hashing algorithms like bcrypt."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the user account was created.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "email",
+        "password",
+        "createdAt"
+      ]
+    },
+    "Problem": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Problem",
+      "type": "object",
+      "description": "Represents a global risk or issue detected and monitored by the ProblemPulse system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Problem entity."
+        },
+        "title": {
+          "type": "string",
+          "description": "A concise title describing the problem or risk."
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed explanation of the problem, its context, and implications."
+        },
+        "category": {
+          "type": "string",
+          "description": "The thematic category the problem belongs to (expected values: Social, Environmental, Health, Education, Technology, Economy)."
+        },
+        "impact": {
+          "type": "string",
+          "description": "Describes the potential effect or severity of the problem, often including quantitative data (e.g., '45M affected')."
+        },
+        "location": {
+          "type": "string",
+          "description": "Geographical region or area affected by the problem (e.g., Amazon Basin, Europe, Africa)."
+        },
+        "status": {
+          "type": "string",
+          "description": "The current urgency or state of the problem (expected values: critical, warning, normal)."
+        },
+        "trend": {
+          "type": "array",
+          "description": "A series of numerical values representing the historical trend or progression of the problem over time.",
+          "items": {
+            "type": "number"
+          }
+        },
+        "tags": {
+          "type": "array",
+          "description": "A list of keywords or labels associated with the problem for categorization and search (e.g., #Climate, #Cybersecurity).",
+          "items": {
+            "type": "string"
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the problem entry was created.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "description",
+        "category",
+        "impact",
+        "location",
+        "status",
+        "trend",
+        "tags",
+        "createdAt"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores individual user profile data. Access is strictly limited to the user whose `uid` matches the `{userId}` wildcard. This collection exemplifies path-based ownership for private data.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique Firebase Authentication UID of the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/problems/{problemId}",
+        "definition": {
+          "entityName": "Problem",
+          "schema": {
+            "$ref": "#/backend/entities/Problem"
+          },
+          "description": "Stores global problem entries. All authenticated users can read documents in this collection. For write operations (create, update, delete), each document includes a denormalized 'createdBy' field which stores the Firebase Auth UID of the user who created the problem, ensuring authorization independence for ownership-based writes.",
+          "params": [
+            {
+              "name": "problemId",
+              "description": "The unique identifier for a specific problem entry."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to be secure, scalable, and debuggable by adhering to the core principles of Authorization Independence, Structural Segregation, and Access Modeling. For user-specific data, the `/users/{userId}` collection is employed. This path-based ownership ensures that each user's profile data is directly accessible only by them, with `request.auth.uid` matching `{userId}`. This makes rules simple and atomic, eliminating the need for hierarchical lookups.\n\nFor the global `Problem` data, a top-level collection `/problems/{problemId}` is used. To achieve **Authorization Independence** for `Problem` documents, if users are allowed to create and manage their own problems, each `Problem` document *must include a `createdBy` field*. This field would store the `uid` of the user who created the problem. This denormalization allows security rules for `update` and `delete` operations on `Problem` documents to be self-contained within the document, comparing `request.auth.uid` directly against `resource.data.createdBy` without needing `get()` calls to other documents.\n\n**Structural Segregation** is maintained by separating user profiles from global problem data. All documents within `/problems` are assumed to share a homogeneous security posture (readable by all authenticated users, with creation by any authenticated user and write access restricted to the creator). If different problem states (e.g., drafts vs. published) required different read access, structural segregation (e.g., `/users/{userId}/draft_problems`) would be considered, but the current `Problem` entity's `status` field (`critical`, `warning`, `normal`) refers to urgency, not access control. All problems are expected to be visible on the dashboard to authenticated users.\n\nThis structure directly supports **Querying for Authorization Purposes (QAPs)**:\n*   For `/users/{userId}`: Listing documents in `/users` is inherently protected by rules that only allow `read` access if `request.auth.uid == userId`. Any attempt to list the entire collection by a client not explicitly owning specific documents would be denied unless explicit `list` rules were added, which for private user data is not recommended.\n*   For `/problems/{problemId}`: Authenticated users can securely `list` all problems because the collection's security posture is consistent (all authenticated users can read). Write operations (`create`, `update`, `delete`) are secured by the denormalized `createdBy` field, ensuring that `request.auth.uid` matches the `createdBy` field for modifications, thus preventing unauthorized changes while allowing global reads. This design ensures rules are not used as filters and queries return only data the user is authorized to see or interact with."
+  }
+}
