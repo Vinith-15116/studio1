@@ -1,34 +1,32 @@
-
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Activity, LayoutDashboard, Lightbulb, User, LogOut, Sun, Moon } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Activity, LayoutDashboard, Lightbulb, User as UserIcon, LogOut, Sun, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { useUser, useAuth } from "@/firebase";
+import { signOut } from "firebase/auth";
 
 export default function Header() {
   const pathname = usePathname();
+  const router = useRouter();
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-
-  useEffect(() => {
-    // Check if logged in (simulated)
-    const token = localStorage.getItem("token");
-    setIsLoggedIn(!!token);
-  }, []);
+  const { user, isUserLoading } = useUser();
+  const auth = useAuth();
 
   const navLinks = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { name: "Innovate", href: "/innovate", icon: Lightbulb },
-    { name: "Profile", href: "/profile", icon: User },
+    { name: "Profile", href: "/profile", icon: UserIcon },
   ];
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    setIsLoggedIn(false);
-    window.location.href = "/login";
+  const handleLogout = async () => {
+    if (auth) {
+      await signOut(auth);
+      router.push("/login");
+    }
   };
 
   return (
@@ -41,25 +39,27 @@ export default function Header() {
           <span className="text-xl font-bold tracking-tight text-foreground font-headline">ProblemPulse</span>
         </Link>
 
-        <nav className="hidden md:flex items-center gap-6">
-          {navLinks.map((link) => {
-            const Icon = link.icon;
-            const isActive = pathname === link.href;
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={cn(
-                  "flex items-center gap-2 text-sm font-medium transition-colors hover:text-primary",
-                  isActive ? "text-primary" : "text-muted-foreground"
-                )}
-              >
-                <Icon className="h-4 w-4" />
-                {link.name}
-              </Link>
-            );
-          })}
-        </nav>
+        {user && (
+          <nav className="hidden md:flex items-center gap-6">
+            {navLinks.map((link) => {
+              const Icon = link.icon;
+              const isActive = pathname === link.href;
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={cn(
+                    "flex items-center gap-2 text-sm font-medium transition-colors hover:text-primary",
+                    isActive ? "text-primary" : "text-muted-foreground"
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  {link.name}
+                </Link>
+              );
+            })}
+          </nav>
+        )}
 
         <div className="flex items-center gap-2">
           <Button
@@ -71,12 +71,12 @@ export default function Header() {
             {isDarkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </Button>
 
-          {isLoggedIn ? (
+          {user ? (
             <Button variant="ghost" size="sm" onClick={handleLogout} className="text-muted-foreground">
               <LogOut className="mr-2 h-4 w-4" />
               Logout
             </Button>
-          ) : (
+          ) : !isUserLoading && (
             <div className="flex items-center gap-2">
               <Button asChild variant="ghost" size="sm">
                 <Link href="/login">Sign In</Link>

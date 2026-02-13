@@ -1,25 +1,66 @@
-
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Activity, ArrowRight, CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { useAuth, useUser, initiateEmailSignUp, setDocumentNonBlocking, useFirestore } from "@/firebase";
+import { doc } from "firebase/firestore";
+import { useToast } from "@/hooks/use-toast";
 
 export default function SignupPage() {
-  const [isLoading, setIsLoading] = useState(false);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const auth = useAuth();
+  const firestore = useFirestore();
+  const { user, isUserLoading } = useUser();
+  const router = useRouter();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (user && !isUserLoading) {
+      // Create user document if it doesn't exist
+      if (firestore && user.uid) {
+        const userRef = doc(firestore, "users", user.uid);
+        setDocumentNonBlocking(userRef, {
+          id: user.uid,
+          name: name || user.displayName || "Anonymous User",
+          email: user.email,
+          createdAt: new Date().toISOString(),
+        }, { merge: true });
+      }
+      router.push("/dashboard");
+    }
+  }, [user, isUserLoading, router, firestore, name]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    // Simulate signup
-    setTimeout(() => {
-      localStorage.setItem("token", "dummy-jwt");
-      window.location.href = "/dashboard";
-    }, 1500);
+    if (!auth) return;
+    
+    if (password !== confirmPassword) {
+      toast({
+        variant: "destructive",
+        title: "Passwords mismatch",
+        description: "Please ensure your passwords match.",
+      });
+      return;
+    }
+
+    try {
+      initiateEmailSignUp(auth, email, password);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Signup failed",
+        description: error.message,
+      });
+    }
   };
 
   return (
@@ -43,6 +84,8 @@ export default function SignupPage() {
                 type="text" 
                 placeholder="John Doe" 
                 required 
+                value={name}
+                onChange={(e) => setName(e.target.value)}
                 className="h-11 border-muted bg-muted/30 focus:bg-white transition-all"
               />
             </div>
@@ -53,6 +96,8 @@ export default function SignupPage() {
                 type="email" 
                 placeholder="name@example.com" 
                 required 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="h-11 border-muted bg-muted/30 focus:bg-white transition-all"
               />
             </div>
@@ -63,6 +108,8 @@ export default function SignupPage() {
                   id="password" 
                   type="password" 
                   required 
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   className="h-11 border-muted bg-muted/30 focus:bg-white transition-all"
                 />
               </div>
@@ -72,6 +119,8 @@ export default function SignupPage() {
                   id="confirm-password" 
                   type="password" 
                   required 
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
                   className="h-11 border-muted bg-muted/30 focus:bg-white transition-all"
                 />
               </div>
@@ -87,9 +136,9 @@ export default function SignupPage() {
             <Button 
               type="submit" 
               className="w-full h-11 bg-gradient-to-r from-primary to-primary/80 font-bold shadow-lg shadow-primary/20"
-              disabled={isLoading}
+              disabled={isUserLoading}
             >
-              {isLoading ? "Creating account..." : (
+              {isUserLoading ? "Creating account..." : (
                 <>
                   Create Account
                   <ArrowRight className="ml-2 h-4 w-4" />

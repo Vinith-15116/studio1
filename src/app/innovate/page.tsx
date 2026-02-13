@@ -13,10 +13,20 @@ import { Sparkles, Send, Loader2, AlertCircle } from "lucide-react";
 import { generateRiskPrioritizationRecommendation } from "@/ai/flows/generate-risk-prioritization-recommendation";
 import { CATEGORIES } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
+import { useFirestore, useUser, addDocumentNonBlocking } from "@/firebase";
+import { collection } from "firebase/firestore";
+import { useToast } from "@/hooks/use-toast";
+import { useRouter } from "next/navigation";
 
 export default function InnovatePage() {
   const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [recommendation, setRecommendation] = useState<{ status: string; explanation: string } | null>(null);
+  const firestore = useFirestore();
+  const { user } = useUser();
+  const { toast } = useToast();
+  const router = useRouter();
+
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -41,10 +51,58 @@ export default function InnovatePage() {
         status: result.prioritizationStatus,
         explanation: result.explanation,
       });
-    } catch (error) {
-      console.error(error);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "AI Analysis Error",
+        description: "Failed to prioritize risk indicators.",
+      });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!firestore || !user) {
+      toast({
+        variant: "destructive",
+        title: "Authentication Required",
+        description: "Please sign in to submit pulse reports.",
+      });
+      return;
+    }
+
+    setSubmitting(true);
+    const problemsRef = collection(firestore, "problems");
+    
+    const problemData = {
+      title: formData.title,
+      description: formData.description,
+      category: formData.category || "General",
+      impact: "Initial Detection", // Placeholder or from AI
+      location: formData.location || "Unknown",
+      status: recommendation?.status || "NORMAL",
+      trend: [10, 15, 20], // Seed trend
+      tags: formData.tags.split(",").map(t => t.trim()),
+      createdAt: new Date().toISOString(),
+      createdBy: user.uid,
+    };
+
+    try {
+      addDocumentNonBlocking(problemsRef, problemData);
+      toast({
+        title: "Report Submitted",
+        description: "Your risk indicators have been broadcasted to the global node network.",
+      });
+      router.push("/dashboard");
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Submission Failed",
+        description: "Could not sync with the global database.",
+      });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -126,8 +184,13 @@ export default function InnovatePage() {
                   {loading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Sparkles className="mr-2 h-5 w-5" />}
                   AI Analyze Risk
                 </Button>
-                <Button variant="default" className="flex-1 h-12 bg-primary font-bold">
-                  <Send className="mr-2 h-5 w-5" />
+                <Button 
+                  onClick={handleSubmit}
+                  disabled={submitting || !formData.title || !formData.description}
+                  variant="default" 
+                  className="flex-1 h-12 bg-primary font-bold"
+                >
+                  {submitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Send className="mr-2 h-5 w-5" />}
                   Submit Report
                 </Button>
               </div>

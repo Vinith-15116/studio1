@@ -1,25 +1,43 @@
-
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Activity, ArrowRight, Github, Chrome } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { useAuth, useUser, initiateEmailSignIn } from "@/firebase";
+import { useToast } from "@/hooks/use-toast";
 
 export default function LoginPage() {
-  const [isLoading, setIsLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const auth = useAuth();
+  const { user, isUserLoading } = useUser();
+  const router = useRouter();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (user && !isUserLoading) {
+      router.push("/dashboard");
+    }
+  }, [user, isUserLoading, router]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    // Simulate login
-    setTimeout(() => {
-      localStorage.setItem("token", "dummy-jwt");
-      window.location.href = "/dashboard";
-    }, 1500);
+    if (!auth) return;
+    
+    try {
+      initiateEmailSignIn(auth, email, password);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Login failed",
+        description: error.message,
+      });
+    }
   };
 
   return (
@@ -43,6 +61,8 @@ export default function LoginPage() {
                 type="email" 
                 placeholder="name@example.com" 
                 required 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="h-11 border-muted bg-muted/30 focus:bg-white transition-all"
               />
             </div>
@@ -55,15 +75,17 @@ export default function LoginPage() {
                 id="password" 
                 type="password" 
                 required 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 className="h-11 border-muted bg-muted/30 focus:bg-white transition-all"
               />
             </div>
             <Button 
               type="submit" 
               className="w-full h-11 bg-gradient-to-r from-primary to-primary/80 font-bold shadow-lg shadow-primary/20"
-              disabled={isLoading}
+              disabled={isUserLoading}
             >
-              {isLoading ? "Signing in..." : (
+              {isUserLoading ? "Signing in..." : (
                 <>
                   Continue
                   <ArrowRight className="ml-2 h-4 w-4" />

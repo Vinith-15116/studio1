@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import Header from "@/components/layout/Header";
 import StatsCard from "@/components/dashboard/StatsCard";
 import ProblemCard from "@/components/dashboard/ProblemCard";
@@ -16,15 +17,26 @@ import {
   Globe, 
   Plus,
   Zap,
-  Activity
+  Activity,
+  Loader2
 } from "lucide-react";
-import { PROBLEMS, STATS, CATEGORIES } from "@/lib/mock-data";
+import { STATS, CATEGORIES } from "@/lib/mock-data";
+import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
+import { collection } from "firebase/firestore";
 
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
+  const firestore = useFirestore();
 
-  const filteredProblems = PROBLEMS.filter((p) => {
+  const problemsRef = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, "problems");
+  }, [firestore]);
+
+  const { data: problems, isLoading } = useCollection(problemsRef);
+
+  const filteredProblems = (problems || []).filter((p) => {
     const matchesTab = activeTab === "All" || p.category === activeTab;
     const matchesSearch = p.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                          p.description.toLowerCase().includes(searchQuery.toLowerCase());
@@ -49,9 +61,11 @@ export default function DashboardPage() {
               </p>
             </div>
             <div className="flex items-center gap-3">
-              <Button className="bg-gradient-to-r from-primary to-primary/80 shadow-lg shadow-primary/20">
-                <Plus className="mr-2 h-4 w-4" />
-                New Pulse
+              <Button asChild className="bg-gradient-to-r from-primary to-primary/80 shadow-lg shadow-primary/20">
+                <Link href="/innovate">
+                  <Plus className="mr-2 h-4 w-4" />
+                  New Pulse
+                </Link>
               </Button>
             </div>
           </div>
@@ -114,7 +128,12 @@ export default function DashboardPage() {
         </section>
 
         <section className="mb-12">
-          {filteredProblems.length > 0 ? (
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-20">
+              <Loader2 className="h-10 w-10 text-primary animate-spin mb-4" />
+              <p className="text-muted-foreground font-medium">Synchronizing with global pulse nodes...</p>
+            </div>
+          ) : filteredProblems.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredProblems.map((problem) => (
                 <ProblemCard key={problem.id} problem={problem} />
