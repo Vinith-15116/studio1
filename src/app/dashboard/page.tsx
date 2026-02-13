@@ -18,23 +18,28 @@ import {
   Plus,
   Zap,
   Activity,
-  Loader2
+  Loader2,
+  Lock
 } from "lucide-react";
 import { STATS, CATEGORIES } from "@/lib/mock-data";
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
+import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
 import { collection } from "firebase/firestore";
 
 export default function DashboardPage() {
+  const { user, isUserLoading } = useUser();
   const [activeTab, setActiveTab] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const firestore = useFirestore();
 
+  // Stabilize the reference and only provide it if the user is authenticated.
+  // This prevents 'Missing or insufficient permissions' errors for unauthenticated visitors
+  // since the Firestore rules require an active session for the 'problems' collection.
   const problemsRef = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !user) return null;
     return collection(firestore, "problems");
-  }, [firestore]);
+  }, [firestore, user]);
 
-  const { data: problems, isLoading } = useCollection(problemsRef);
+  const { data: problems, isLoading: isProblemsLoading } = useCollection(problemsRef);
 
   const filteredProblems = (problems || []).filter((p) => {
     const matchesTab = activeTab === "All" || p.category === activeTab;
@@ -44,6 +49,50 @@ export default function DashboardPage() {
   });
 
   const statIcons = [AlertTriangle, ShieldCheck, Zap, Radar];
+
+  // Show global loading state while determining auth status
+  if (isUserLoading) {
+    return (
+      <div className="min-h-screen flex flex-col bg-background">
+        <Header />
+        <main className="flex-grow flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="h-10 w-10 text-primary animate-spin" />
+            <p className="text-muted-foreground font-medium animate-pulse">Authenticating with Pulse Node...</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // If the user isn't logged in, show a restricted dashboard view with a call to action
+  if (!user) {
+    return (
+      <div className="min-h-screen flex flex-col bg-background">
+        <Header />
+        <main className="flex-grow container mx-auto px-4 py-20 max-w-2xl text-center">
+          <div className="bg-card p-12 rounded-3xl shadow-xl border border-border">
+            <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-6 text-primary">
+              <Lock className="h-8 w-8" />
+            </div>
+            <h1 className="text-3xl font-extrabold mb-4 font-headline">Secure Access Required</h1>
+            <p className="text-muted-foreground text-lg mb-8 font-medium">
+              The global risk dashboard is restricted to verified intelligence analysts. 
+              Please sign in to monitor real-time pulses and contribute findings.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Button asChild size="lg" className="bg-primary font-bold px-8">
+                <Link href="/login">Sign In</Link>
+              </Button>
+              <Button asChild variant="outline" size="lg" className="font-bold px-8">
+                <Link href="/signup">Join the Network</Link>
+              </Button>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -128,7 +177,7 @@ export default function DashboardPage() {
         </section>
 
         <section className="mb-12">
-          {isLoading ? (
+          {isProblemsLoading ? (
             <div className="flex flex-col items-center justify-center py-20">
               <Loader2 className="h-10 w-10 text-primary animate-spin mb-4" />
               <p className="text-muted-foreground font-medium">Synchronizing with global pulse nodes...</p>
