@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -13,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Sparkles, Send, Loader2, AlertCircle } from "lucide-react";
 import { generateRiskPrioritizationRecommendation } from "@/ai/flows/generate-risk-prioritization-recommendation";
 import { CATEGORIES } from "@/lib/mock-data";
+import { cn } from "@/lib/utils";
 
 export default function InnovatePage() {
   const [loading, setLoading] = useState(false);

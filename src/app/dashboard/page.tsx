@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -7,19 +6,17 @@ import StatsCard from "@/components/dashboard/StatsCard";
 import ProblemCard from "@/components/dashboard/ProblemCard";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Search, 
   Filter, 
   AlertTriangle, 
   ShieldCheck, 
-  GapIcon, 
   Radar, 
   Globe, 
   Plus,
-  LayoutGrid,
-  Zap
+  Zap,
+  Activity
 } from "lucide-react";
 import { PROBLEMS, STATS, CATEGORIES } from "@/lib/mock-data";
 
